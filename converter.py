@@ -24,23 +24,20 @@ def process_csv(input_path):
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         output_path = os.path.join(desktop, "shopify_import_ready.csv")
         
-        # Open using latin-1 fallback to guarantee every byte is read safely without crashes
         with open(input_path, mode='r', encoding='latin-1') as infile:
             raw_lines = infile.readlines()
             
         if not raw_lines:
             raise Exception("The selected file is completely empty.")
             
-        # Parse rows by forcing a clean split on the physical invisible tabs
         data_rows = []
         for line in raw_lines:
             if line.strip():
                 # Split columns and strip trailing whitespace/quotes from each cell
                 data_rows.append([cell.strip().strip('"') for cell in line.split('\t')])
         
-        # Check if we successfully parsed more than just a single header row
         if len(data_rows) <= 1:
-            raise Exception("No data rows found below the header line. Ensure it is a valid tab file.")
+            raise Exception("No data rows found below the header line.")
             
         shopify_headers = [
             "Handle", "Title", "Body (HTML)", "Vendor", "Type", "Tags", "Published",
@@ -63,31 +60,24 @@ def process_csv(input_path):
             
             row_count = 0
             
-            # Skip index 0 (the raw headers) and read data based purely on index position numbers
             for row in data_rows[1:]:
-                # Ensure row has basic grid elements before reading
-                if len(row) < 12:
+                # Check for bare minimum structural length (at least discontinued, item, and description columns)
+                if len(row) < 3:
                     continue
                 
                 row_count += 1
                 new_row = {h: "" for h in shopify_headers}
                 
-                # --- FIXED POSITION-BASED EXTRACTION ---
-                # 0: Discontinued, 1: Item, 2: Description, 3: Brand, 4: Model, 5: OFFSET
-                # 6: BOLTPATTERN1METRIC, 7: BOLTPATTERN2METRIC, 8: BOLTPATTERN3METRIC
-                # 9: WHEELDIAMETER, 10: WHEELWIDTH, 11: FINISH, 12: HUBBOREMETRIC...
-                # 18: Image1, 21: FinishWarranty(Years)
+                # --- DYNAMIC LAYER POSITION MAP ---
+                discontinued_val = row[0].upper() if len(row) > 0 else "NO"
+                sku_val = row[1] if len(row) > 1 else ""
+                raw_desc = row[2] if len(row) > 2 else "Standard Wheel"
+                brand_val = row[3] if len(row) > 3 else "Generic"
+                offset_val = row[5] if len(row) > 5 else ""
+                diam_val = row[9] if len(row) > 9 else "Universal"
+                width_val = row[10] if len(row) > 10 else "Standard"
+                finish_val = row[11] if len(row) > 11 else ""
                 
-                discontinued_val = row[0].upper()
-                sku_val = row[1]
-                raw_desc = row[2]
-                brand_val = row[3]
-                offset_val = row[5]
-                diam_val = row[9]
-                width_val = row[10]
-                finish_val = row[11]
-                
-                # Dynamic index protection for deep columns on the far right
                 hub_val = row[12] if len(row) > 12 else ""
                 seat_val = row[13] if len(row) > 13 else ""
                 mat_val = row[14] if len(row) > 14 else ""
@@ -98,7 +88,6 @@ def process_csv(input_path):
                 struct_warr = row[20] if len(row) > 20 else ""
                 finish_warr = row[21] if len(row) > 21 else ""
                 
-                # Map product naming variables
                 cleaned_title = clean_title(raw_desc)
                 new_row["Title"] = cleaned_title
                 new_row["Handle"] = generate_handle(cleaned_title)
@@ -106,7 +95,7 @@ def process_csv(input_path):
                 new_row["Type"] = "Rims"
                 new_row["Image Src"] = img_val
                 
-                # Build Description Technical Block
+                # Build Description Specification Block dynamically
                 html_spec = "<h3>Product Specifications:</h3><ul>"
                 if offset_val: html_spec += f"<li><strong>Offset:</strong> {offset_val}</li>"
                 if hub_val: html_spec += f"<li><strong>Hub Bore Metric:</strong> {hub_val}</li>"
@@ -121,7 +110,6 @@ def process_csv(input_path):
                 html_spec += "</ul>"
                 new_row["Body (HTML)"] = html_spec
                 
-                # Map Availability Status
                 if "YES" in discontinued_val or "Y" == discontinued_val:
                     new_row["Published"] = "False"
                     new_row["Status"] = "draft"
@@ -129,14 +117,12 @@ def process_csv(input_path):
                     new_row["Published"] = "True"
                     new_row["Status"] = "active"
                 
-                # Map Menu Dropdowns
                 new_row["Option1 Name"] = "Diameter"
-                new_row["Option1 Value"] = diam_val if diam_val else "Universal"
+                new_row["Option1 Value"] = diam_val
                 
                 new_row["Option2 Name"] = "Width"
-                new_row["Option2 Value"] = width_val if width_val else "Standard"
+                new_row["Option2 Value"] = width_val
                 
-                # Combine Bolt Pattern Arrays
                 p1 = row[6] if len(row) > 6 else ""
                 p2 = row[7] if len(row) > 7 else ""
                 p3 = row[8] if len(row) > 8 else ""
@@ -144,7 +130,6 @@ def process_csv(input_path):
                 new_row["Option3 Name"] = "Bolt Pattern"
                 new_row["Option3 Value"] = " | ".join(patterns) if patterns else "Universal"
                 
-                # Identifiers
                 new_row["Variant SKU"] = sku_val
                 new_row["Variant Inventory Qty"] = default_stock
                 new_row["Variant Inventory Tracker"] = "shopify"
@@ -156,10 +141,7 @@ def process_csv(input_path):
                 
                 writer.writerow(new_row)
                 
-            if row_count == 0:
-                raise Exception("Data parsed but columns did not align with expectations. Double check index grid layout structure.")
-                
-            messagebox.showinfo("Success!", f"Conversion Complete!\n\nProcessed {row_count} rows successfully via index map.\nSaved to Desktop.")
+            messagebox.showinfo("Success!", f"Conversion Complete!\n\nProcessed {row_count} rows successfully.\nSaved to Desktop.")
     except Exception as e:
         messagebox.showerror("Error", f"Error during position mapping:\n\n{str(e)}")
 
