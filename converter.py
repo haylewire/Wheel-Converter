@@ -32,9 +32,12 @@ def process_csv(input_path):
             
         data_rows = []
         for line in raw_lines:
-            if line.strip():
-                # Split columns and strip trailing whitespace/quotes from each cell
-                data_rows.append([cell.strip().strip('"') for cell in line.split('\t')])
+            cleaned_line = line.strip()
+            if cleaned_line:
+                # --- FIXED: SPLIT ON MULTIPLE SPACES OR TABS AUTOMATICALLY ---
+                # This breaks the row into a column box wherever 2 or more spaces exist
+                split_row = re.split(r'\t|\s{2,}', cleaned_line)
+                data_rows.append([cell.strip().strip('"') for cell in split_row])
         
         if len(data_rows) <= 1:
             raise Exception("No data rows found below the header line.")
@@ -61,7 +64,7 @@ def process_csv(input_path):
             row_count = 0
             
             for row in data_rows[1:]:
-                # Check for bare minimum structural length (at least discontinued, item, and description columns)
+                # Check for bare minimum structural column parts
                 if len(row) < 3:
                     continue
                 
