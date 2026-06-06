@@ -31,9 +31,17 @@ def get_reader_with_encoding(input_path):
                 continue
             reader = csv.DictReader(f, delimiter='\t')
             headers = reader.fieldnames
-            if headers and any("Description" in h for h in headers):
-                return f, reader
-            f.close()
+            
+            # Scrub any hidden Excel BOM bytes from headers safely
+            if headers:
+                cleaned_headers = []
+                for h in headers:
+                    if h:
+                        clean_h = h.encode('utf-8', 'ignore').decode('utf-8-sig').strip()
+                        cleaned_headers.append(clean_h)
+                reader.fieldnames = cleaned_headers
+                
+            return f, reader
         except Exception:
             if 'f' in locals() and not f.closed:
                 f.close()
@@ -68,20 +76,23 @@ def process_csv(input_path):
             writer.writeheader()
             row_count = 0
             for row in reader:
+                # Clean up hidden spacing from keys and values simultaneously
                 row = {str(k).strip(): str(v).strip() for k, v in row.items() if k is not None}
-                raw_desc = row.get("Description", "")
-                if not raw_desc:
-                    raw_desc = row.get("DESCRIPTION", "")
+                
+                # Check column keys using case-insensitive fallback logic
+                raw_desc = row.get("Description", row.get("DESCRIPTION", ""))
                 if not raw_desc:
                     continue
+                    
                 row_count += 1
                 new_row = {h: "" for h in shopify_headers}
                 cleaned_title = clean_title(raw_desc)
                 new_row["Title"] = cleaned_title
                 new_row["Handle"] = generate_handle(cleaned_title)
-                new_row["Vendor"] = row.get("Brand", "Generic")
+                new_row["Vendor"] = row.get("Brand", row.get("BRAND", "Generic"))
                 new_row["Type"] = "Rims"
-                new_row["Image Src"] = row.get("Image1", "")
+                new_row["Image Src"] = row.get("Image1", row.get("IMAGE1", ""))
+                
                 html_spec = "<h3>Product Specifications:</h3><ul>"
                 tech_keys = [
                     "OFFSET", "HUBBOREMETRIC", "SEATTYPE", "MATERIAL", 
@@ -89,29 +100,34 @@ def process_csv(input_path):
                     "StructureWarranty", "FinishWarranty(Years)"
                 ]
                 for key in tech_keys:
-                    val = row.get(key, "")
+                    val = row.get(key, row.get(key.upper(), ""))
                     if val:
                         html_spec += f"<li><strong>{key}:</strong> {val}</li>"
                 html_spec += "</ul>"
                 new_row["Body (HTML)"] = html_spec
-                is_discontinued = row.get("Discontinued", "NO").upper()
+                
+                is_discontinued = row.get("Discontinued", row.get("DISCONTINUED", "NO")).upper()
                 if "YES" in is_discontinued or "Y" == is_discontinued:
                     new_row["Published"] = "False"
                     new_row["Status"] = "draft"
                 else:
                     new_row["Published"] = "True"
                     new_row["Status"] = "active"
+                    
                 new_row["Option1 Name"] = "Diameter"
-                new_row["Option1 Value"] = row.get("WHEELDIAMETER", "Universal")
+                new_row["Option1 Value"] = row.get("WHEELDIAMETER", row.get("WHEELDIAMETER".upper(), "Universal"))
+                
                 new_row["Option2 Name"] = "Width"
-                new_row["Option2 Value"] = row.get("WHEELWIDTH", "Standard")
+                new_row["Option2 Value"] = row.get("WHEELWIDTH", row.get("WHEELWIDTH".upper(), "Standard"))
+                
                 p1 = row.get("BOLTPATTERN1METRIC", "")
                 p2 = row.get("BOLTPATTERN2METRIC", "")
                 p3 = row.get("BOLTPATTERN3METRIC", "")
                 patterns = [p for p in [p1, p2, p3] if p and p.lower() != "blank" and p.lower() != ""]
                 new_row["Option3 Name"] = "Bolt Pattern"
                 new_row["Option3 Value"] = " | ".join(patterns) if patterns else "Universal"
-                new_row["Variant SKU"] = row.get("Item", "")
+                
+                new_row["Variant SKU"] = row.get("Item", row.get("ITEM", ""))
                 new_row["Variant Inventory Qty"] = default_stock
                 new_row["Variant Inventory Tracker"] = "shopify"
                 new_row["Variant Inventory Policy"] = "deny"
