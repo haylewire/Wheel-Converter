@@ -152,7 +152,9 @@ def run_app():
     root.resizable(False, False)
     
     def select_file():
-        file_path = filedialog.askopenfilename(filetypes=[("Text/CSV Files", "*.csv;*.txt")])
+        # --- FIXED FOR MAC ENGINE COMPILES ---
+        # Using space separation rather than semicolons keeps the Apple GUI interface perfectly stable
+        file_path = filedialog.askopenfilename(filetypes=[("Text/CSV Files", "*.csv *.txt")])
         if file_path: process_csv(file_path)
 
     tk.Label(root, text="Shopify Supplier CSV Formatter", font=("Arial", 14, "bold"), pady=20).pack()
