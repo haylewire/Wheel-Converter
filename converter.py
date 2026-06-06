@@ -8,9 +8,6 @@ def clean_title(description):
     if not description:
         return "Standard Wheel Model"
     title = str(description).strip()
-    
-    # Intelligently capture the Brand, Model, and Hub Bore before the size dimensions
-    # Example: 'ARMED OFF-ROAD AGGRESSOR 87.1 20x10...' -> 'ARMED OFF-ROAD AGGRESSOR 87.1'
     size_match = re.search(r'\b\d{2}[xX]\d{1,2}\b', title)
     if size_match:
         title = title[:size_match.start()].strip()
@@ -28,18 +25,24 @@ def process_csv(input_path):
         output_path = os.path.join(desktop, "shopify_import_ready.csv")
         
         with open(input_path, mode='r', encoding='utf-8-sig') as infile:
-            # Parse using tab delimiters explicitly for your TSV file setup
-            reader = csv.DictReader(infile, delimiter='\t')
+            raw_lines = infile.readlines()
+            if not raw_lines:
+                raise Exception("The selected file is completely empty.")
+                
+            data_rows = []
+            for line in raw_lines:
+                if line.strip():
+                    data_rows.append([cell.strip() for cell in line.split('\t')])
             
             grouped_products = {}
             
-            for row in reader:
-                row = {str(k).strip(): str(v).strip() for k, v in row.items()}
+            for row in data_rows[1:]:
+                if len(row) < 13: 
+                    continue
+                    
+                raw_desc = row[2] if len(row) > 2 else "Standard Wheel"
+                raw_brand = row[3] if len(row) > 3 else "Generic"
                 
-                raw_desc = row.get("Description", "")
-                raw_brand = row.get("Brand", "Generic")
-                
-                # Title and Handle will now unique-group by Hub Bore perfectly
                 title = clean_title(raw_desc)
                 handle = generate_handle(title)
                 
@@ -51,7 +54,6 @@ def process_csv(input_path):
                     }
                 grouped_products[handle]["Variants"].append(row)
 
-            # --- Target Shopify Column Mapping Configuration ---
             shopify_headers = [
                 "Handle", "Title", "Body (HTML)", "Vendor", "Type", "Tags", "Published",
                 "Option1 Name", "Option1 Value", "Option2 Name", "Option2 Value", "Option3 Name", "Option3 Value",
@@ -78,30 +80,39 @@ def process_csv(input_path):
                         new_row = {h: "" for h in shopify_headers}
                         new_row["Handle"] = handle
                         
-                        # --- 1. CORE DATA FIELDS (Now separating models properly) ---
                         if is_first_row:
                             new_row["Title"] = product["Title"]
                             new_row["Vendor"] = product["Vendor"]
                             new_row["Type"] = "Rims"
-                            new_row["Image Src"] = variant_row.get("Image1", "")
+                            new_row["Image Src"] = variant_row[18] if len(variant_row) > 18 else ""
                             
-                            # Construct Technical Specification Box using exact headers
+                            offset = variant_row[5] if len(variant_row) > 5 else ""
+                            hub = variant_row[12] if len(variant_row) > 12 else ""
+                            finish = variant_row[11] if len(variant_row) > 11 else ""
+                            seat = variant_row[13] if len(variant_row) > 13 else ""
+                            mat = variant_row[14] if len(variant_row) > 14 else ""
+                            load = variant_row[15] if len(variant_row) > 15 else ""
+                            cap = variant_row[16] if len(variant_row) > 16 else ""
+                            cap_type = variant_row[17] if len(variant_row) > 17 else ""
+                            struc_warr = variant_row[20] if len(variant_row) > 20 else ""
+                            fin_warr = variant_row[21] if len(variant_row) > 21 else ""
+                            
                             html_spec = "<h3>Product Specifications:</h3><ul>"
-                            tech_keys = [
-                                "OFFSET", "HUBBOREMETRIC", "SEATTYPE", "MATERIAL", 
-                                "MaxLoadLbs", "CenterCapPartNumber", "CenterCapType", 
-                                "StructureWarranty", "FinishWarranty(Years)"
-                            ]
-                            for key in tech_keys:
-                                val = variant_row.get(key, "")
-                                if val:
-                                    html_spec += f"<li><strong>{key}:</strong> {val}</li>"
+                            if offset: html_spec += f"<li><strong>Offset:</strong> {offset}</li>"
+                            if hub: html_spec += f"<li><strong>Hub Box Metric:</strong> {hub}</li>"
+                            if finish: html_spec += f"<li><strong>Finish:</strong> {finish}</li>"
+                            if seat: html_spec += f"<li><strong>Seat Type:</strong> {seat}</li>"
+                            if mat: html_spec += f"<li><strong>Material:</strong> {mat}</li>"
+                            if load: html_spec += f"<li><strong>Max Load (Lbs):</strong> {load}</li>"
+                            if cap: html_spec += f"<li><strong>Center Cap Part #:</strong> {cap}</li>"
+                            if cap_type: html_spec += f"<li><strong>Center Cap Type:</strong> {cap_type}</li>"
+                            if struc_warr: html_spec += f"<li><strong>Structure Warranty:</strong> {struc_warr}</li>"
+                            if fin_warr: html_spec += f"<li><strong>Finish Warranty (Years):</strong> {fin_warr}</li>"
                             html_spec += "</ul>"
                             new_row["Body (HTML)"] = html_spec
                             
-                            # Discontinued Status Layout Check
-                            is_discontinued = variant_row.get("Discontinued", "NO").upper()
-                            if "YES" in is_discontinued or "Y" == is_discontinued:
+                            disco_status = variant_row[0].upper() if len(variant_row) > 0 else "NO"
+                            if "YES" in disco_status or "Y" == disco_status:
                                 new_row["Published"] = "False"
                                 new_row["Status"] = "draft"
                             else:
@@ -110,28 +121,22 @@ def process_csv(input_path):
                                 
                             is_first_row = False
                         
-                        # --- 2. MULTI-OPTION CUSTOMER DROPDOWNS ---
                         new_row["Option1 Name"] = "Diameter"
-                        new_row["Option1 Value"] = variant_row.get("WHEELDIAMETER", "Universal")
+                        new_row["Option1 Value"] = variant_row[9] if len(variant_row) > 9 else "Universal"
                         
                         new_row["Option2 Name"] = "Width"
-                        new_row["Option2 Value"] = variant_row.get("WHEELWIDTH", "Standard")
+                        new_row["Option2 Value"] = variant_row[10] if len(variant_row) > 10 else "Standard"
                         
-                        # Process multi-drill pattern layouts
-                        p1 = variant_row.get("BOLTPATTERN1METRIC", "")
-                        p2 = variant_row.get("BOLTPATTERN2METRIC", "")
-                        p3 = variant_row.get("BOLTPATTERN3METRIC", "")
-                        patterns = [p for p in [p1, p2, p3] if p and p.lower() != "blank"]
-                        combined_patterns = " | ".join(patterns) if patterns else "Universal"
-                        
+                        p1 = variant_row[6] if len(variant_row) > 6 else ""
+                        p2 = variant_row[7] if len(variant_row) > 7 else ""
+                        p3 = variant_row[8] if len(variant_row) > 8 else ""
+                        patterns = [p for p in [p1, p2, p3] if p and p.lower() != "blank" and p.lower() != ""]
                         new_row["Option3 Name"] = "Bolt Pattern"
-                        new_row["Option3 Value"] = combined_patterns
+                        new_row["Option3 Value"] = " | ".join(patterns) if patterns else "Universal"
                         
-                        # --- 3. IDENTIFIERS ---
-                        new_row["Variant SKU"] = variant_row.get("Item", "")
+                        new_row["Variant SKU"] = variant_row[1] if len(variant_row) > 1 else ""
                         new_row["Variant Inventory Qty"] = default_stock
                         
-                        # --- 4. SHOPIFY INVENTORY POLICY DEFAULTS ---
                         new_row["Variant Inventory Tracker"] = "shopify"
                         new_row["Variant Inventory Policy"] = "deny"
                         new_row["Variant Fulfillment Service"] = "manual"
@@ -141,9 +146,9 @@ def process_csv(input_path):
                         
                         writer.writerow(new_row)
                         
-        messagebox.showinfo("Success!", "Flawless Data Separation Complete!\n\nYour formatted file is saved to your desktop.")
+        messagebox.showinfo("Success!", "Grid Conversion Complete!\n\nYour layout matches Shopify perfectly.")
     except Exception as e:
-        messagebox.showerror("Error", f"Error during structural build:\n\n{str(e)}")
+        messagebox.showerror("Error", f"Error during data mapping:\n\n{str(e)}")
 
 def run_app():
     root = tk.Tk()
@@ -152,8 +157,6 @@ def run_app():
     root.resizable(False, False)
     
     def select_file():
-        # --- FIXED FOR MAC ENGINE COMPILES ---
-        # Using space separation rather than semicolons keeps the Apple GUI interface perfectly stable
         file_path = filedialog.askopenfilename(filetypes=[("Text/CSV Files", "*.csv *.txt")])
         if file_path: process_csv(file_path)
 
