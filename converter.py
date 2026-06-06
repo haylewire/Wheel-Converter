@@ -38,7 +38,6 @@ def find_column(headers, possibilities):
 
 def process_csv(input_path):
     try:
-        # Automatically saves the output directly to the desktop user path
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         output_path = os.path.join(desktop, "shopify_import_ready.csv")
         
@@ -96,9 +95,9 @@ def process_csv(input_path):
                 for row in reader:
                     new_row = {h: "" for h in shopify_headers}
                     
-                    # 1. Product Title & Brand Identity
-                    raw_desc = row.get(desc_col, "")
-                    raw_brand = row.get(brand_col, "Generic")
+                    # 1. Product Title & Brand Identity (with None safety)
+                    raw_desc = row.get(desc_col, "") or ""
+                    raw_brand = row.get(brand_col, "Generic") or "Generic"
                     
                     cleaned_title = clean_title(raw_desc, raw_brand)
                     new_row["Title"] = cleaned_title
@@ -106,10 +105,10 @@ def process_csv(input_path):
                     new_row["Vendor"] = raw_brand
                     new_row["Type"] = "Rims"
                     
-                    # 2. Build the Technical Specification List (HTML)
+                    # 2. Build the Technical Specification List (HTML) with explicit None safety
                     html_spec = "<h3>Product Specifications:</h3><ul>"
                     for field in tech_fields:
-                        val = row.get(field, "").strip()
+                        val = str(row.get(field, "") or "").strip()
                         if val:
                             html_spec += f"<li><strong>{field.title()}:</strong> {val}</li>"
                     html_spec += "</ul>"
@@ -117,21 +116,21 @@ def process_csv(input_path):
                     
                     # 3. Map Customer Dropdown Options (Variants)
                     new_row["Option1 Name"] = "Diameter"
-                    new_row["Option1 Value"] = row.get(diam_col, "Universal")
+                    new_row["Option1 Value"] = row.get(diam_col, "Universal") or "Universal"
                     
                     new_row["Option2 Name"] = "Width"
-                    new_row["Option2 Value"] = row.get(width_col, "Standard")
+                    new_row["Option2 Value"] = row.get(width_col, "Standard") or "Standard"
                     
                     new_row["Option3 Name"] = "Bolt Pattern"
-                    new_row["Option3 Value"] = row.get(bolt_col, "Universal")
+                    new_row["Option3 Value"] = row.get(bolt_col, "Universal") or "Universal"
                     
                     # 4. Inventory, SKUs, and Images
-                    new_row["Variant SKU"] = row.get(sku_col, "")
-                    new_row["Variant Inventory Qty"] = row.get(stock_col, default_stock)
-                    new_row["Image Src"] = row.get(img_col, "")
+                    new_row["Variant SKU"] = row.get(sku_col, "") or ""
+                    new_row["Variant Inventory Qty"] = row.get(stock_col, default_stock) or default_stock
+                    new_row["Image Src"] = row.get(img_col, "") or ""
                     
                     # 5. Automated Discontinued Safety Routing
-                    is_discontinued = str(row.get(disco_col, "NO")).strip().upper()
+                    is_discontinued = str(row.get(disco_col, "NO") or "NO").strip().upper()
                     if "YES" in is_discontinued or "Y" == is_discontinued:
                         new_row["Published"] = "False"
                         new_row["Status"] = "draft"  # Hide it safely inside Shopify admin
