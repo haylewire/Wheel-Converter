@@ -1,8 +1,9 @@
-name: Build Windows Application
+name: Build Desktop Applications
 on: [push]
 
 jobs:
-  build:
+  # --- WINDOWS AUTOMATION JOB ---
+  build-windows:
     runs-on: windows-latest
     steps:
     - name: Checkout Code
@@ -19,8 +20,32 @@ jobs:
     - name: Create Executable File
       run: pyinstaller --noconsole --onefile converter.py
 
-    - name: Save Finished File
+    - name: Save Windows File
       uses: actions/upload-artifact@v4
       with:
         name: Shopify-Wheel-Converter-Windows
         path: dist/converter.exe
+
+  # --- MAC AUTOMATION JOB ---
+  build-mac:
+    runs-on: macos-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Compiler
+      run: pip install pyinstaller
+
+    - name: Create Mac Application
+      run: pyinstaller --windowed --onefile converter.py
+
+    - name: Save Mac File
+      uses: actions/upload-artifact@v4
+      with:
+        name: Shopify-Wheel-Converter-Mac
+        path: dist/converter.app
