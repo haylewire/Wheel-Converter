@@ -125,7 +125,7 @@ def process_csv(input_path):
                         new_row["Option1 Value"] = variant_row[9] if len(variant_row) > 9 else "Universal"
                         
                         new_row["Option2 Name"] = "Width"
-                        new_row["Option2 Value"] = variant_row[10] if len(variant_row) > 10 gy else "Standard"
+                        new_row["Option2 Value"] = variant_row[10] if len(variant_row) > 10 else "Standard"
                         
                         p1 = variant_row[6] if len(variant_row) > 6 else ""
                         p2 = variant_row[7] if len(variant_row) > 7 else ""
