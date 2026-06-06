@@ -99,7 +99,7 @@ def process_csv(input_path):
                             
                             html_spec = "<h3>Product Specifications:</h3><ul>"
                             if offset: html_spec += f"<li><strong>Offset:</strong> {offset}</li>"
-                            if hub: html_spec += f"<li><strong>Hub Box Metric:</strong> {hub}</li>"
+                            if hub: html_spec += f"<li><strong>Hub Bore:</strong> {hub}</li>"
                             if finish: html_spec += f"<li><strong>Finish:</strong> {finish}</li>"
                             if seat: html_spec += f"<li><strong>Seat Type:</strong> {seat}</li>"
                             if mat: html_spec += f"<li><strong>Material:</strong> {mat}</li>"
@@ -125,7 +125,7 @@ def process_csv(input_path):
                         new_row["Option1 Value"] = variant_row[9] if len(variant_row) > 9 else "Universal"
                         
                         new_row["Option2 Name"] = "Width"
-                        new_row["Option2 Value"] = variant_row[10] if len(variant_row) > 10 else "Standard"
+                        new_row["Option2 Value"] = variant_row[10] if len(variant_row) > 10 gy else "Standard"
                         
                         p1 = variant_row[6] if len(variant_row) > 6 else ""
                         p2 = variant_row[7] if len(variant_row) > 7 else ""
